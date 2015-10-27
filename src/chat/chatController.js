@@ -3,6 +3,18 @@ var _ = require('underscore');
 var userChatsController = require('../userChats/userChatsController')
 var UserChats = require('../userChats/userChatsModel');
 
+var saveItemWithPromise = function(item) {
+  return new Promise(function(resolve, reject) {
+    item.save(function(err) {
+      if(err) {
+        return reject(err);
+      } else {
+        resolve();
+      }
+    });
+  })
+}
+
 module.exports = {
   // Adding new participant to an existing conversation
   addedParticipant: function(messageData) {
@@ -69,15 +81,22 @@ module.exports = {
         newMessage.text = messageData.message;
         newMessage.conversationID = messageData.conversationId;
         newMessage.messageParticipants = messageParticipants;
-        newMessage.save(function(err) {
-          if(err) {
-            var response = {err: 'Unable to save message'};
-            console.log(response.err);
-            console.log('err:', err);
-          } else {
-            console.log('new message is saved in schema');
-          }
-        });
+
+        /*  
+          Saving newMessage is actually redundant because messages schema is a subdocument of conversation schema
+          Sub documents don't need to be saved as long as the parents document is saved.
+          So this doesn't need to be chained with the operation that saves conversation schema below. 
+          But it's here to demonstrate the re-use of the saveItemWIthPromises with another schema :)
+          for more information on sub-documents see http://mongoosejs.com/docs/subdocs.html#altsyntax
+        */
+        saveItemWithPromise(newMessage) 
+        .then(function() {
+          console.log('added new message in conversation')  
+        })
+        .catch(function(err) {
+          console.error(err);
+        })
+
       } else {
         console.log('messageData is undefined');
       }
@@ -90,15 +109,6 @@ module.exports = {
         if(messageParticipants.length > 2) {conversation.group = true} else {
           conversation.group = false;
         }
-        conversation.save(function(err) {
-          if(err) {
-            var response = {error: 'Unable to save chat'};
-            console.log(response.error);
-            console.log('err', err);
-          } else {
-            console.log('added new message in conversation');
-          }
-        });
       // Creates a new conversation schema and save newly created message Schema to the new convo Schema
       } else {
         var conversation = new Chat.conversation();
@@ -110,16 +120,17 @@ module.exports = {
         if(messageParticipants.length > 2) {conversation.group = true} else {
           conversation.group = false;
         }
-        conversation.save(function(err) {
-          if(err) {
-            var response = {error: 'Unable to save chat'};
-            console.log(response.error);
-            console.log('err', err);
-          } else {
-            console.log('added new message in conversation');
-          }
-        });
       }
+      /*
+        The code below is refactored to use promises instead of callbacks. 
+      */
+      saveItemWithPromise(conversation)
+      .then(function() {
+        console.log('added new message in conversation')  
+      })
+      .catch(function(err) {
+        console.error(err);
+      })
     })
   },
 
